@@ -1,0 +1,1284 @@
+openapi: 3.0.3
+info:
+  title: Invoice Platform - Master Data API (Django REST Framework)
+  version: 1.0.0
+  description: CRUD for vendors, purchase orders and invoices. Bulk upload, reconciliation
+    and reports are served by the FastAPI service.
+paths:
+  /api/v1/invoices/:
+    get:
+      operationId: v1_invoices_list
+      description: |-
+        Vendor invoices.
+
+        New invoices start as PENDING and are classified by the reconciliation
+        engine (FastAPI service: `POST /api/v1/reconciliation/run`).
+
+        Editing a reconciliation-relevant field resets the invoice to PENDING;
+        if it was MATCHED, the PO balance it consumed is released. Deleting a
+        MATCHED invoice releases its balance too.
+      parameters:
+      - in: query
+        name: due_date_from
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: due_date_to
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: invoice_date_from
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: invoice_date_to
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: invoice_number
+        schema:
+          type: string
+      - in: query
+        name: max_total
+        schema:
+          type: number
+      - in: query
+        name: min_total
+        schema:
+          type: number
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: po_number
+        schema:
+          type: string
+      - in: query
+        name: purchase_order
+        schema:
+          type: number
+      - in: query
+        name: reconciliation_status
+        schema:
+          type: string
+          enum:
+          - FAILED
+          - MATCHED
+          - MISMATCHED
+          - PENDING
+        description: |-
+          * `PENDING` - Pending
+          * `MATCHED` - Matched
+          * `MISMATCHED` - Mismatched
+          * `FAILED` - Failed
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: source
+        schema:
+          type: string
+          enum:
+          - API
+          - BULK_UPLOAD
+        description: |-
+          * `API` - Api
+          * `BULK_UPLOAD` - Bulk Upload
+      - in: query
+        name: vendor
+        schema:
+          type: number
+      - in: query
+        name: vendor_code
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedInvoiceList'
+          description: ''
+    post:
+      operationId: v1_invoices_create
+      description: |-
+        Vendor invoices.
+
+        New invoices start as PENDING and are classified by the reconciliation
+        engine (FastAPI service: `POST /api/v1/reconciliation/run`).
+
+        Editing a reconciliation-relevant field resets the invoice to PENDING;
+        if it was MATCHED, the PO balance it consumed is released. Deleting a
+        MATCHED invoice releases its balance too.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+          description: ''
+  /api/v1/invoices/{id}/:
+    get:
+      operationId: v1_invoices_retrieve
+      description: |-
+        Vendor invoices.
+
+        New invoices start as PENDING and are classified by the reconciliation
+        engine (FastAPI service: `POST /api/v1/reconciliation/run`).
+
+        Editing a reconciliation-relevant field resets the invoice to PENDING;
+        if it was MATCHED, the PO balance it consumed is released. Deleting a
+        MATCHED invoice releases its balance too.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this invoice.
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+          description: ''
+    put:
+      operationId: v1_invoices_update
+      description: |-
+        Vendor invoices.
+
+        New invoices start as PENDING and are classified by the reconciliation
+        engine (FastAPI service: `POST /api/v1/reconciliation/run`).
+
+        Editing a reconciliation-relevant field resets the invoice to PENDING;
+        if it was MATCHED, the PO balance it consumed is released. Deleting a
+        MATCHED invoice releases its balance too.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this invoice.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+          description: ''
+    patch:
+      operationId: v1_invoices_partial_update
+      description: |-
+        Vendor invoices.
+
+        New invoices start as PENDING and are classified by the reconciliation
+        engine (FastAPI service: `POST /api/v1/reconciliation/run`).
+
+        Editing a reconciliation-relevant field resets the invoice to PENDING;
+        if it was MATCHED, the PO balance it consumed is released. Deleting a
+        MATCHED invoice releases its balance too.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this invoice.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedInvoiceRequest'
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+          description: ''
+    delete:
+      operationId: v1_invoices_destroy
+      description: |-
+        Vendor invoices.
+
+        New invoices start as PENDING and are classified by the reconciliation
+        engine (FastAPI service: `POST /api/v1/reconciliation/run`).
+
+        Editing a reconciliation-relevant field resets the invoice to PENDING;
+        if it was MATCHED, the PO balance it consumed is released. Deleting a
+        MATCHED invoice releases its balance too.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this invoice.
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/purchase-orders/:
+    get:
+      operationId: v1_purchase_orders_list
+      description: |-
+        Purchase orders.
+
+        `total_amount` and `remaining_balance` are maintained by the system:
+        total = amount + tax, and the balance is reduced when an invoice is
+        reconciled as MATCHED. A PO referenced by invoices cannot be deleted (409).
+      parameters:
+      - in: query
+        name: max_remaining_balance
+        schema:
+          type: number
+      - in: query
+        name: min_remaining_balance
+        schema:
+          type: number
+      - in: query
+        name: order_date_from
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: order_date_to
+        schema:
+          type: string
+          format: date
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: po_number
+        schema:
+          type: string
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - CANCELLED
+          - CLOSED
+          - OPEN
+        description: |-
+          * `OPEN` - Open
+          * `CLOSED` - Closed
+          * `CANCELLED` - Cancelled
+      - in: query
+        name: vendor
+        schema:
+          type: number
+      - in: query
+        name: vendor_code
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPurchaseOrderList'
+          description: ''
+    post:
+      operationId: v1_purchase_orders_create
+      description: |-
+        Purchase orders.
+
+        `total_amount` and `remaining_balance` are maintained by the system:
+        total = amount + tax, and the balance is reduced when an invoice is
+        reconciled as MATCHED. A PO referenced by invoices cannot be deleted (409).
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+          description: ''
+  /api/v1/purchase-orders/{id}/:
+    get:
+      operationId: v1_purchase_orders_retrieve
+      description: |-
+        Purchase orders.
+
+        `total_amount` and `remaining_balance` are maintained by the system:
+        total = amount + tax, and the balance is reduced when an invoice is
+        reconciled as MATCHED. A PO referenced by invoices cannot be deleted (409).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this purchase order.
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+          description: ''
+    put:
+      operationId: v1_purchase_orders_update
+      description: |-
+        Purchase orders.
+
+        `total_amount` and `remaining_balance` are maintained by the system:
+        total = amount + tax, and the balance is reduced when an invoice is
+        reconciled as MATCHED. A PO referenced by invoices cannot be deleted (409).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this purchase order.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+          description: ''
+    patch:
+      operationId: v1_purchase_orders_partial_update
+      description: |-
+        Purchase orders.
+
+        `total_amount` and `remaining_balance` are maintained by the system:
+        total = amount + tax, and the balance is reduced when an invoice is
+        reconciled as MATCHED. A PO referenced by invoices cannot be deleted (409).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this purchase order.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPurchaseOrderRequest'
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+          description: ''
+    delete:
+      operationId: v1_purchase_orders_destroy
+      description: |-
+        Purchase orders.
+
+        `total_amount` and `remaining_balance` are maintained by the system:
+        total = amount + tax, and the balance is reduced when an invoice is
+        reconciled as MATCHED. A PO referenced by invoices cannot be deleted (409).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this purchase order.
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/vendors/:
+    get:
+      operationId: v1_vendors_list
+      description: |-
+        Vendor master data.
+
+        Vendors referenced by purchase orders or invoices cannot be deleted
+        (409); deactivate them instead.
+      parameters:
+      - in: query
+        name: created_after
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_before
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        description: |-
+          * `ACTIVE` - Active
+          * `INACTIVE` - Inactive
+      - in: query
+        name: vendor_code
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedVendorList'
+          description: ''
+    post:
+      operationId: v1_vendors_create
+      description: |-
+        Vendor master data.
+
+        Vendors referenced by purchase orders or invoices cannot be deleted
+        (409); deactivate them instead.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendor'
+          description: ''
+  /api/v1/vendors/{id}/:
+    get:
+      operationId: v1_vendors_retrieve
+      description: |-
+        Vendor master data.
+
+        Vendors referenced by purchase orders or invoices cannot be deleted
+        (409); deactivate them instead.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this vendor.
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendor'
+          description: ''
+    put:
+      operationId: v1_vendors_update
+      description: |-
+        Vendor master data.
+
+        Vendors referenced by purchase orders or invoices cannot be deleted
+        (409); deactivate them instead.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this vendor.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendor'
+          description: ''
+    patch:
+      operationId: v1_vendors_partial_update
+      description: |-
+        Vendor master data.
+
+        Vendors referenced by purchase orders or invoices cannot be deleted
+        (409); deactivate them instead.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this vendor.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedVendorRequest'
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendor'
+          description: ''
+    delete:
+      operationId: v1_vendors_destroy
+      description: |-
+        Vendor master data.
+
+        Vendors referenced by purchase orders or invoices cannot be deleted
+        (409); deactivate them instead.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this vendor.
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/vendors/{id}/activate/:
+    post:
+      operationId: v1_vendors_activate_create
+      description: |-
+        Vendor master data.
+
+        Vendors referenced by purchase orders or invoices cannot be deleted
+        (409); deactivate them instead.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this vendor.
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendor'
+          description: ''
+  /api/v1/vendors/{id}/deactivate/:
+    post:
+      operationId: v1_vendors_deactivate_create
+      description: |-
+        Vendor master data.
+
+        Vendors referenced by purchase orders or invoices cannot be deleted
+        (409); deactivate them instead.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this vendor.
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vendor'
+          description: ''
+components:
+  schemas:
+    Invoice:
+      type: object
+      description: |-
+        `total_amount` is optional on input: it is derived as amount + tax, and
+        rejected if a supplied value disagrees.
+
+        Whether the invoice agrees with its PO (vendor match, available balance)
+        is deliberately *not* validated here - that is the reconciliation
+        engine's job, and such invoices are stored and classified MISMATCHED.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        invoice_number:
+          type: string
+          maxLength: 50
+        vendor:
+          type: integer
+        vendor_code:
+          type: string
+          readOnly: true
+        purchase_order:
+          type: integer
+        po_number:
+          type: string
+          readOnly: true
+        invoice_date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        tax_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        total_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        reconciliation_status:
+          allOf:
+          - $ref: '#/components/schemas/ReconciliationStatusEnum'
+          readOnly: true
+        reconciliation_notes:
+          readOnly: true
+          description: List of {code, message} reasons from the last reconciliation
+            run.
+        reconciled_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        source:
+          allOf:
+          - $ref: '#/components/schemas/SourceEnum'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - created_at
+      - due_date
+      - id
+      - invoice_date
+      - invoice_number
+      - po_number
+      - purchase_order
+      - reconciled_at
+      - reconciliation_notes
+      - reconciliation_status
+      - source
+      - updated_at
+      - vendor
+      - vendor_code
+    InvoiceRequest:
+      type: object
+      description: |-
+        `total_amount` is optional on input: it is derived as amount + tax, and
+        rejected if a supplied value disagrees.
+
+        Whether the invoice agrees with its PO (vendor match, available balance)
+        is deliberately *not* validated here - that is the reconciliation
+        engine's job, and such invoices are stored and classified MISMATCHED.
+      properties:
+        invoice_number:
+          type: string
+          minLength: 1
+          maxLength: 50
+        vendor:
+          type: integer
+        purchase_order:
+          type: integer
+        invoice_date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        tax_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        total_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+      required:
+      - amount
+      - due_date
+      - invoice_date
+      - invoice_number
+      - purchase_order
+      - vendor
+    PaginatedInvoiceList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+        total_pages:
+          type: integer
+          example: 7
+        next:
+          type: string
+          nullable: true
+          format: uri
+        previous:
+          type: string
+          nullable: true
+          format: uri
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+    PaginatedPurchaseOrderList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+        total_pages:
+          type: integer
+          example: 7
+        next:
+          type: string
+          nullable: true
+          format: uri
+        previous:
+          type: string
+          nullable: true
+          format: uri
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseOrder'
+    PaginatedVendorList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+        total_pages:
+          type: integer
+          example: 7
+        next:
+          type: string
+          nullable: true
+          format: uri
+        previous:
+          type: string
+          nullable: true
+          format: uri
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vendor'
+    PatchedInvoiceRequest:
+      type: object
+      description: |-
+        `total_amount` is optional on input: it is derived as amount + tax, and
+        rejected if a supplied value disagrees.
+
+        Whether the invoice agrees with its PO (vendor match, available balance)
+        is deliberately *not* validated here - that is the reconciliation
+        engine's job, and such invoices are stored and classified MISMATCHED.
+      properties:
+        invoice_number:
+          type: string
+          minLength: 1
+          maxLength: 50
+        vendor:
+          type: integer
+        purchase_order:
+          type: integer
+        invoice_date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        tax_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        total_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+    PatchedPurchaseOrderRequest:
+      type: object
+      properties:
+        po_number:
+          type: string
+          minLength: 1
+          maxLength: 50
+        vendor:
+          type: integer
+        description:
+          type: string
+          maxLength: 500
+        order_date:
+          type: string
+          format: date
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        tax_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/PurchaseOrderStatusEnum'
+    PatchedVendorRequest:
+      type: object
+      properties:
+        vendor_code:
+          type: string
+          minLength: 1
+          maxLength: 30
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        phone:
+          type: string
+          maxLength: 30
+        tax_id:
+          type: string
+          nullable: true
+          maxLength: 50
+        address:
+          type: string
+        status:
+          $ref: '#/components/schemas/VendorStatusEnum'
+    PurchaseOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        po_number:
+          type: string
+          maxLength: 50
+        vendor:
+          type: integer
+        vendor_code:
+          type: string
+          readOnly: true
+        vendor_name:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          maxLength: 500
+        order_date:
+          type: string
+          format: date
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        tax_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        total_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+          description: amount + tax_amount.
+        remaining_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+          description: total_amount minus the total of all MATCHED invoices.
+        invoiced_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/PurchaseOrderStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - created_at
+      - id
+      - invoiced_amount
+      - order_date
+      - po_number
+      - remaining_balance
+      - total_amount
+      - updated_at
+      - vendor
+      - vendor_code
+      - vendor_name
+    PurchaseOrderRequest:
+      type: object
+      properties:
+        po_number:
+          type: string
+          minLength: 1
+          maxLength: 50
+        vendor:
+          type: integer
+        description:
+          type: string
+          maxLength: 500
+        order_date:
+          type: string
+          format: date
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        tax_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/PurchaseOrderStatusEnum'
+      required:
+      - amount
+      - order_date
+      - po_number
+      - vendor
+    PurchaseOrderStatusEnum:
+      enum:
+      - OPEN
+      - CLOSED
+      - CANCELLED
+      type: string
+      description: |-
+        * `OPEN` - Open
+        * `CLOSED` - Closed
+        * `CANCELLED` - Cancelled
+    ReconciliationStatusEnum:
+      enum:
+      - PENDING
+      - MATCHED
+      - MISMATCHED
+      - FAILED
+      type: string
+      description: |-
+        * `PENDING` - Pending
+        * `MATCHED` - Matched
+        * `MISMATCHED` - Mismatched
+        * `FAILED` - Failed
+    SourceEnum:
+      enum:
+      - API
+      - BULK_UPLOAD
+      type: string
+      description: |-
+        * `API` - Api
+        * `BULK_UPLOAD` - Bulk Upload
+    Vendor:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        vendor_code:
+          type: string
+          maxLength: 30
+        name:
+          type: string
+          maxLength: 255
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        phone:
+          type: string
+          maxLength: 30
+        tax_id:
+          type: string
+          nullable: true
+          maxLength: 50
+        address:
+          type: string
+        status:
+          $ref: '#/components/schemas/VendorStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - updated_at
+      - vendor_code
+    VendorRequest:
+      type: object
+      properties:
+        vendor_code:
+          type: string
+          minLength: 1
+          maxLength: 30
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        phone:
+          type: string
+          maxLength: 30
+        tax_id:
+          type: string
+          nullable: true
+          maxLength: 50
+        address:
+          type: string
+        status:
+          $ref: '#/components/schemas/VendorStatusEnum'
+      required:
+      - name
+      - vendor_code
+    VendorStatusEnum:
+      enum:
+      - ACTIVE
+      - INACTIVE
+      type: string
+      description: |-
+        * `ACTIVE` - Active
+        * `INACTIVE` - Inactive

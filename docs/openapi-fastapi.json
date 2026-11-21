@@ -1,0 +1,1866 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Invoice Platform - Processing & Reconciliation API (FastAPI)",
+    "description": "\nBulk invoice upload, reconciliation against purchase orders, processing\nhistory and reports. Built with **FastAPI + SQLAlchemy + Pydantic**.\n\nMaster data (vendors, purchase orders, invoices) is managed by the companion\n**Django REST Framework** service; both services share one PostgreSQL\ndatabase whose schema is owned by the Django migrations.\n",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/uploads/invoices": {
+      "post": {
+        "tags": [
+          "Bulk upload & history"
+        ],
+        "summary": "Upload a CSV / XLSX file of invoices",
+        "description": "Each row is validated and classified:\n\n| Classification | Meaning | Stored as invoice? |\n|---|---|---|\n| `MATCHED` | Agrees with its PO; PO balance is reduced | yes |\n| `MISMATCHED` | Valid, but wrong vendor for the PO / exceeds balance / PO closed | yes, for review |\n| `DUPLICATE` | Same vendor + invoice number already exists or repeats in the file | no |\n| `FAILED` | Missing/invalid fields, unknown or inactive vendor, unknown PO, bad dates/amounts | no |\n\n**Columns** (header row required, any order, case-insensitive):\n`invoice_number, vendor_code, po_number, invoice_date, due_date, amount`\nplus optional `tax_amount` (default 0) and `total_amount` (default amount + tax).",
+        "operationId": "upload_invoices_api_v1_uploads_invoices_post",
+        "parameters": [
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Process the file again even if identical content was uploaded before (ignored when an Idempotency-Key header is sent). Already-imported rows are then reported as duplicates.",
+              "default": false,
+              "title": "Force"
+            },
+            "description": "Process the file again even if identical content was uploaded before (ignored when an Idempotency-Key header is sent). Already-imported rows are then reported as duplicates."
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional client-generated key. Re-sending the same key and file returns the original result. Defaults to the file's SHA-256.",
+              "title": "Idempotency-Key"
+            },
+            "description": "Optional client-generated key. Re-sending the same key and file returns the original result. Defaults to the file's SHA-256."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_invoices_api_v1_uploads_invoices_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResultOut"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Idempotent replay of an earlier upload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResultOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported, empty or malformed file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict / upload in progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File too large.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/uploads": {
+      "get": {
+        "tags": [
+          "Bulk upload & history"
+        ],
+        "summary": "Upload / processing history",
+        "operationId": "list_uploads_api_v1_uploads_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-based).",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-based)."
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Items per page.",
+              "default": 20,
+              "title": "Page Size"
+            },
+            "description": "Items per page."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/BatchStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "file_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Substring match.",
+              "title": "File Name"
+            },
+            "description": "Substring match."
+          },
+          {
+            "name": "created_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive, UTC.",
+              "title": "Created From"
+            },
+            "description": "Inclusive, UTC."
+          },
+          {
+            "name": "created_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive, UTC.",
+              "title": "Created To"
+            },
+            "description": "Inclusive, UTC."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_UploadBatchOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/uploads/{batch_id}": {
+      "get": {
+        "tags": [
+          "Bulk upload & history"
+        ],
+        "summary": "Processing summary of one upload",
+        "operationId": "get_upload_api_v1_uploads__batch_id__get",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadBatchOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/uploads/{batch_id}/records": {
+      "get": {
+        "tags": [
+          "Bulk upload & history"
+        ],
+        "summary": "Row-level results of one upload",
+        "operationId": "list_upload_records_api_v1_uploads__batch_id__records_get",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-based).",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-based)."
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Items per page.",
+              "default": 50,
+              "title": "Page Size"
+            },
+            "description": "Items per page."
+          },
+          {
+            "name": "classification",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RecordClassification"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_UploadRecordOut_"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reconciliation/run": {
+      "post": {
+        "tags": [
+          "Reconciliation"
+        ],
+        "summary": "Reconcile all open invoices",
+        "description": "Classifies every `PENDING` and `MISMATCHED` invoice (e.g. invoices\ncreated through the Django CRUD API, or mismatches whose PO has since\nbeen corrected). `MATCHED` invoices reduce their PO's remaining balance.\n\nSafe to call repeatedly: already-matched invoices are never re-processed.",
+        "operationId": "run_reconciliation_api_v1_reconciliation_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReconciliationRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Params"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconciliationRunOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reconciliation/invoices/{invoice_id}": {
+      "post": {
+        "tags": [
+          "Reconciliation"
+        ],
+        "summary": "Reconcile a single invoice",
+        "description": "Re-evaluates one invoice against its vendor and purchase order.\nReturns the current result unchanged if the invoice is already `MATCHED`.",
+        "operationId": "reconcile_invoice_api_v1_reconciliation_invoices__invoice_id__post",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invoice Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceReconciliationOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reports/vendor-summary": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Vendor-wise invoice summary",
+        "description": "Invoice counts and amounts per vendor, broken down by reconciliation\nstatus. Vendors with no invoices in the period are listed with zeros.",
+        "operationId": "vendor_summary_api_v1_reports_vendor_summary_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-based).",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-based)."
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Items per page.",
+              "default": 20,
+              "title": "Page Size"
+            },
+            "description": "Items per page."
+          },
+          {
+            "name": "vendor_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendor Code"
+            }
+          },
+          {
+            "name": "vendor_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/VendorStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendor Status"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Vendor name contains.",
+              "title": "Search"
+            },
+            "description": "Vendor name contains."
+          },
+          {
+            "name": "invoice_date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Invoice Date From"
+            }
+          },
+          {
+            "name": "invoice_date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Invoice Date To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_VendorSummaryOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reports/po-balance": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "PO-wise remaining balance report",
+        "description": "Total, invoiced and remaining amount per purchase order, plus grand\ntotals across all POs matching the filters.",
+        "operationId": "po_balance_api_v1_reports_po_balance_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-based).",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-based)."
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Items per page.",
+              "default": 20,
+              "title": "Page Size"
+            },
+            "description": "Items per page."
+          },
+          {
+            "name": "vendor_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendor Code"
+            }
+          },
+          {
+            "name": "po_number",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Po Number"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/POStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "has_balance",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true = balance left, false = fully invoiced.",
+              "title": "Has Balance"
+            },
+            "description": "true = balance left, false = fully invoiced."
+          },
+          {
+            "name": "order_date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order Date From"
+            }
+          },
+          {
+            "name": "order_date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order Date To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/POBalanceReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reports/processing-stats": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Invoice processing statistics",
+        "operationId": "processing_stats_api_v1_reports_processing_stats_get",
+        "parameters": [
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Created on/after (UTC).",
+              "title": "Date From"
+            },
+            "description": "Created on/after (UTC)."
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Created on/before (UTC).",
+              "title": "Date To"
+            },
+            "description": "Created on/before (UTC)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessingStatsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Liveness + database check",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BatchStatus": {
+        "type": "string",
+        "enum": [
+          "PROCESSING",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "title": "BatchStatus"
+      },
+      "Body_upload_invoices_api_v1_uploads_invoices_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "A .csv or .xlsx file."
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_invoices_api_v1_uploads_invoices_post"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorBody"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InvoiceReconciliationOut": {
+        "properties": {
+          "invoice_id": {
+            "type": "integer",
+            "title": "Invoice Id"
+          },
+          "invoice_number": {
+            "type": "string",
+            "title": "Invoice Number"
+          },
+          "vendor_code": {
+            "type": "string",
+            "title": "Vendor Code"
+          },
+          "po_number": {
+            "type": "string",
+            "title": "Po Number"
+          },
+          "total_amount": {
+            "type": "string",
+            "title": "Total Amount"
+          },
+          "previous_status": {
+            "$ref": "#/components/schemas/ReconciliationStatus"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReconciliationStatus"
+          },
+          "reasons": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "po_remaining_balance": {
+            "type": "string",
+            "title": "Po Remaining Balance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "invoice_id",
+          "invoice_number",
+          "vendor_code",
+          "po_number",
+          "total_amount",
+          "previous_status",
+          "status",
+          "reasons",
+          "po_remaining_balance"
+        ],
+        "title": "InvoiceReconciliationOut"
+      },
+      "InvoiceStats": {
+        "properties": {
+          "total_invoices": {
+            "type": "integer",
+            "title": "Total Invoices"
+          },
+          "total_amount": {
+            "type": "string",
+            "title": "Total Amount"
+          },
+          "by_status": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StatusBucket"
+            },
+            "type": "object",
+            "title": "By Status"
+          },
+          "by_source": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_invoices",
+          "total_amount",
+          "by_status",
+          "by_source"
+        ],
+        "title": "InvoiceStats"
+      },
+      "POBalanceOut": {
+        "properties": {
+          "po_id": {
+            "type": "integer",
+            "title": "Po Id"
+          },
+          "po_number": {
+            "type": "string",
+            "title": "Po Number"
+          },
+          "vendor_code": {
+            "type": "string",
+            "title": "Vendor Code"
+          },
+          "vendor_name": {
+            "type": "string",
+            "title": "Vendor Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "order_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Order Date"
+          },
+          "total_amount": {
+            "type": "string",
+            "title": "Total Amount"
+          },
+          "invoiced_amount": {
+            "type": "string",
+            "title": "Invoiced Amount"
+          },
+          "remaining_balance": {
+            "type": "string",
+            "title": "Remaining Balance"
+          },
+          "utilization_percent": {
+            "type": "string",
+            "title": "Utilization Percent"
+          },
+          "matched_invoice_count": {
+            "type": "integer",
+            "title": "Matched Invoice Count"
+          },
+          "unmatched_invoice_count": {
+            "type": "integer",
+            "title": "Unmatched Invoice Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "po_id",
+          "po_number",
+          "vendor_code",
+          "vendor_name",
+          "status",
+          "order_date",
+          "total_amount",
+          "invoiced_amount",
+          "remaining_balance",
+          "utilization_percent",
+          "matched_invoice_count",
+          "unmatched_invoice_count"
+        ],
+        "title": "POBalanceOut"
+      },
+      "POBalanceReport": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/POBalanceOut"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/POBalanceTotals",
+            "description": "Totals across every PO matching the filters (not just this page)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "page",
+          "page_size",
+          "total_pages",
+          "results",
+          "totals"
+        ],
+        "title": "POBalanceReport"
+      },
+      "POBalanceTotals": {
+        "properties": {
+          "total_amount": {
+            "type": "string",
+            "title": "Total Amount"
+          },
+          "invoiced_amount": {
+            "type": "string",
+            "title": "Invoiced Amount"
+          },
+          "remaining_balance": {
+            "type": "string",
+            "title": "Remaining Balance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_amount",
+          "invoiced_amount",
+          "remaining_balance"
+        ],
+        "title": "POBalanceTotals"
+      },
+      "POStatus": {
+        "type": "string",
+        "enum": [
+          "OPEN",
+          "CLOSED",
+          "CANCELLED"
+        ],
+        "title": "POStatus"
+      },
+      "Page_UploadBatchOut_": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/UploadBatchOut"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "page",
+          "page_size",
+          "total_pages",
+          "results"
+        ],
+        "title": "Page[UploadBatchOut]"
+      },
+      "Page_UploadRecordOut_": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/UploadRecordOut"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "page",
+          "page_size",
+          "total_pages",
+          "results"
+        ],
+        "title": "Page[UploadRecordOut]"
+      },
+      "Page_VendorSummaryOut_": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/VendorSummaryOut"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "page",
+          "page_size",
+          "total_pages",
+          "results"
+        ],
+        "title": "Page[VendorSummaryOut]"
+      },
+      "ProcessingStatsOut": {
+        "properties": {
+          "date_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "uploads": {
+            "$ref": "#/components/schemas/UploadStats"
+          },
+          "invoices": {
+            "$ref": "#/components/schemas/InvoiceStats"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date_from",
+          "date_to",
+          "uploads",
+          "invoices"
+        ],
+        "title": "ProcessingStatsOut"
+      },
+      "ReconciliationRunOut": {
+        "properties": {
+          "processed": {
+            "type": "integer",
+            "title": "Processed"
+          },
+          "matched": {
+            "type": "integer",
+            "title": "Matched"
+          },
+          "mismatched": {
+            "type": "integer",
+            "title": "Mismatched"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceReconciliationOut"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "processed",
+          "matched",
+          "mismatched",
+          "failed",
+          "results"
+        ],
+        "title": "ReconciliationRunOut"
+      },
+      "ReconciliationRunRequest": {
+        "properties": {
+          "vendor_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Code",
+            "description": "Only this vendor's invoices."
+          },
+          "po_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Po Number",
+            "description": "Only invoices on this PO."
+          },
+          "include_failed": {
+            "type": "boolean",
+            "title": "Include Failed",
+            "description": "Also retry FAILED invoices (PENDING and MISMATCHED are always included).",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 5000.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 500
+          }
+        },
+        "type": "object",
+        "title": "ReconciliationRunRequest"
+      },
+      "ReconciliationStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "MATCHED",
+          "MISMATCHED",
+          "FAILED"
+        ],
+        "title": "ReconciliationStatus",
+        "description": "Status of a persisted invoice.\n\nThere is no DUPLICATE here on purpose: a duplicate (same vendor + invoice\nnumber) is rejected before it is stored, so it only ever appears as the\nclassification of an upload row."
+      },
+      "RecordClassification": {
+        "type": "string",
+        "enum": [
+          "MATCHED",
+          "MISMATCHED",
+          "DUPLICATE",
+          "FAILED"
+        ],
+        "title": "RecordClassification",
+        "description": "Outcome of the reconciliation rules / of one row of a bulk upload."
+      },
+      "StatusBucket": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "total_amount": {
+            "type": "string",
+            "title": "Total Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "total_amount"
+        ],
+        "title": "StatusBucket"
+      },
+      "UploadBatchOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "file_name": {
+            "type": "string",
+            "title": "File Name"
+          },
+          "file_type": {
+            "type": "string",
+            "title": "File Type"
+          },
+          "file_hash": {
+            "type": "string",
+            "title": "File Hash"
+          },
+          "file_size": {
+            "type": "integer",
+            "title": "File Size"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BatchStatus"
+          },
+          "total_records": {
+            "type": "integer",
+            "title": "Total Records"
+          },
+          "success_count": {
+            "type": "integer",
+            "title": "Success Count"
+          },
+          "failure_count": {
+            "type": "integer",
+            "title": "Failure Count"
+          },
+          "duplicate_count": {
+            "type": "integer",
+            "title": "Duplicate Count"
+          },
+          "matched_count": {
+            "type": "integer",
+            "title": "Matched Count"
+          },
+          "mismatched_count": {
+            "type": "integer",
+            "title": "Mismatched Count"
+          },
+          "error_message": {
+            "type": "string",
+            "title": "Error Message"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "file_name",
+          "file_type",
+          "file_hash",
+          "file_size",
+          "idempotency_key",
+          "status",
+          "total_records",
+          "success_count",
+          "failure_count",
+          "duplicate_count",
+          "matched_count",
+          "mismatched_count",
+          "error_message",
+          "created_at",
+          "completed_at"
+        ],
+        "title": "UploadBatchOut",
+        "description": "Processing summary of one upload.\n\nsuccess_count + failure_count + duplicate_count == total_records.\nsuccess = rows imported as invoices (matched_count + mismatched_count)."
+      },
+      "UploadRecordOut": {
+        "properties": {
+          "row_number": {
+            "type": "integer",
+            "title": "Row Number"
+          },
+          "invoice_number": {
+            "type": "string",
+            "title": "Invoice Number"
+          },
+          "vendor_code": {
+            "type": "string",
+            "title": "Vendor Code"
+          },
+          "po_number": {
+            "type": "string",
+            "title": "Po Number"
+          },
+          "classification": {
+            "$ref": "#/components/schemas/RecordClassification"
+          },
+          "errors": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "row_number",
+          "invoice_number",
+          "vendor_code",
+          "po_number",
+          "classification",
+          "errors",
+          "invoice_id"
+        ],
+        "title": "UploadRecordOut"
+      },
+      "UploadResultOut": {
+        "properties": {
+          "idempotent_replay": {
+            "type": "boolean",
+            "title": "Idempotent Replay",
+            "description": "True when this upload was already processed and the stored result is being returned; nothing was processed again."
+          },
+          "summary": {
+            "$ref": "#/components/schemas/UploadBatchOut"
+          },
+          "valid_records": {
+            "items": {
+              "$ref": "#/components/schemas/UploadRecordOut"
+            },
+            "type": "array",
+            "title": "Valid Records",
+            "description": "Rows imported as invoices (MATCHED or MISMATCHED)."
+          },
+          "invalid_records": {
+            "items": {
+              "$ref": "#/components/schemas/UploadRecordOut"
+            },
+            "type": "array",
+            "title": "Invalid Records",
+            "description": "Rows rejected (FAILED or DUPLICATE), with reasons."
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotent_replay",
+          "summary",
+          "valid_records",
+          "invalid_records"
+        ],
+        "title": "UploadResultOut"
+      },
+      "UploadStats": {
+        "properties": {
+          "total_batches": {
+            "type": "integer",
+            "title": "Total Batches"
+          },
+          "batches_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Batches By Status"
+          },
+          "total_records": {
+            "type": "integer",
+            "title": "Total Records"
+          },
+          "success_count": {
+            "type": "integer",
+            "title": "Success Count"
+          },
+          "failure_count": {
+            "type": "integer",
+            "title": "Failure Count"
+          },
+          "duplicate_count": {
+            "type": "integer",
+            "title": "Duplicate Count"
+          },
+          "matched_count": {
+            "type": "integer",
+            "title": "Matched Count"
+          },
+          "mismatched_count": {
+            "type": "integer",
+            "title": "Mismatched Count"
+          },
+          "success_rate_percent": {
+            "type": "string",
+            "title": "Success Rate Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_batches",
+          "batches_by_status",
+          "total_records",
+          "success_count",
+          "failure_count",
+          "duplicate_count",
+          "matched_count",
+          "mismatched_count",
+          "success_rate_percent"
+        ],
+        "title": "UploadStats"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VendorStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "INACTIVE"
+        ],
+        "title": "VendorStatus"
+      },
+      "VendorSummaryOut": {
+        "properties": {
+          "vendor_id": {
+            "type": "integer",
+            "title": "Vendor Id"
+          },
+          "vendor_code": {
+            "type": "string",
+            "title": "Vendor Code"
+          },
+          "vendor_name": {
+            "type": "string",
+            "title": "Vendor Name"
+          },
+          "vendor_status": {
+            "type": "string",
+            "title": "Vendor Status"
+          },
+          "invoice_count": {
+            "type": "integer",
+            "title": "Invoice Count"
+          },
+          "total_invoiced_amount": {
+            "type": "string",
+            "title": "Total Invoiced Amount"
+          },
+          "matched_count": {
+            "type": "integer",
+            "title": "Matched Count"
+          },
+          "matched_amount": {
+            "type": "string",
+            "title": "Matched Amount"
+          },
+          "mismatched_count": {
+            "type": "integer",
+            "title": "Mismatched Count"
+          },
+          "mismatched_amount": {
+            "type": "string",
+            "title": "Mismatched Amount"
+          },
+          "pending_count": {
+            "type": "integer",
+            "title": "Pending Count"
+          },
+          "failed_count": {
+            "type": "integer",
+            "title": "Failed Count"
+          },
+          "first_invoice_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Invoice Date"
+          },
+          "last_invoice_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Invoice Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vendor_id",
+          "vendor_code",
+          "vendor_name",
+          "vendor_status",
+          "invoice_count",
+          "total_invoiced_amount",
+          "matched_count",
+          "matched_amount",
+          "mismatched_count",
+          "mismatched_amount",
+          "pending_count",
+          "failed_count",
+          "first_invoice_date",
+          "last_invoice_date"
+        ],
+        "title": "VendorSummaryOut"
+      }
+    }
+  }
+}

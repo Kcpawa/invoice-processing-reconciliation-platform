@@ -1,0 +1,1326 @@
+{
+  "info": {
+    "name": "Invoice Processing & Reconciliation Platform",
+    "description": "Two services share one PostgreSQL database.\n\n* **Django REST Framework** (`{{django_url}}`, default http://localhost:8000) - vendors, purchase orders, invoices.\n* **FastAPI** (`{{fastapi_url}}`, default http://localhost:8001) - bulk upload, reconciliation, history, reports.\n\nSuggested order: run `python manage.py seed_demo_data` (or the *Create* requests below), then *Upload sample CSV*, then the reports. Create requests store the new id in a collection variable used by the following requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "django_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "fastapi_url",
+      "value": "http://localhost:8001"
+    },
+    {
+      "key": "vendor_id",
+      "value": "1"
+    },
+    {
+      "key": "po_id",
+      "value": "1"
+    },
+    {
+      "key": "invoice_id",
+      "value": "1"
+    },
+    {
+      "key": "batch_id",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Vendors (Django)",
+      "item": [
+        {
+          "name": "Create vendor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{django_url}}/api/v1/vendors/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendors"
+              ]
+            },
+            "description": "vendor_code is unique (case-insensitive) and stored upper-case.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendor_code\": \"V100\",\n  \"name\": \"Postman Demo Vendor\",\n  \"email\": \"ap@demo.example\",\n  \"phone\": \"+91-80-5550100\",\n  \"tax_id\": \"29POSTM1234A1Z5\",\n  \"address\": \"12 MG Road, Bengaluru\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.id) { pm.collectionVariables.set('vendor_id', body.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List vendors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/v1/vendors/?page=1&page_size=20",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendors"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "acme",
+                  "disabled": true
+                },
+                {
+                  "key": "vendor_code",
+                  "value": "V001",
+                  "disabled": true
+                },
+                {
+                  "key": "name",
+                  "value": "acme",
+                  "disabled": true
+                },
+                {
+                  "key": "ordering",
+                  "value": "-created_at",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Get vendor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/v1/vendors/{{vendor_id}}/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendors",
+                "{{vendor_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Update vendor (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{django_url}}/api/v1/vendors/{{vendor_id}}/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendors",
+                "{{vendor_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Demo Vendor Ltd\",\n  \"phone\": \"+91-80-5550199\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Deactivate vendor",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/v1/vendors/{{vendor_id}}/deactivate/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendors",
+                "{{vendor_id}}",
+                "deactivate"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Activate vendor",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/v1/vendors/{{vendor_id}}/activate/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendors",
+                "{{vendor_id}}",
+                "activate"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Delete vendor",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/v1/vendors/{{vendor_id}}/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "vendors",
+                "{{vendor_id}}"
+              ]
+            },
+            "description": "409 if purchase orders or invoices reference the vendor."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Purchase orders (Django)",
+      "item": [
+        {
+          "name": "Create purchase order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{django_url}}/api/v1/purchase-orders/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase-orders"
+              ]
+            },
+            "description": "total_amount and remaining_balance are computed by the server. po_number must be unique.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"po_number\": \"PO-9001\",\n  \"vendor\": \"{{vendor_id}}\",\n  \"description\": \"Postman demo order\",\n  \"order_date\": \"2026-01-15\",\n  \"amount\": \"10000.00\",\n  \"tax_amount\": \"1800.00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.id) { pm.collectionVariables.set('po_id', body.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List purchase orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/v1/purchase-orders/?page=1&page_size=20",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase-orders"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "OPEN",
+                  "disabled": true
+                },
+                {
+                  "key": "vendor_code",
+                  "value": "V001",
+                  "disabled": true
+                },
+                {
+                  "key": "vendor",
+                  "value": "{{vendor_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "order_date_from",
+                  "value": "2026-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "order_date_to",
+                  "value": "2026-12-31",
+                  "disabled": true
+                },
+                {
+                  "key": "min_remaining_balance",
+                  "value": "1000",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "laptop",
+                  "disabled": true
+                },
+                {
+                  "key": "ordering",
+                  "value": "-remaining_balance",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Get purchase order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/v1/purchase-orders/{{po_id}}/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase-orders",
+                "{{po_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Amend purchase order amount",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{django_url}}/api/v1/purchase-orders/{{po_id}}/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase-orders",
+                "{{po_id}}"
+              ]
+            },
+            "description": "Balance is recomputed as new total minus what is already invoiced. 400 if the new total is below the invoiced amount.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"12000.00\",\n  \"tax_amount\": \"2160.00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Cancel purchase order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{django_url}}/api/v1/purchase-orders/{{po_id}}/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase-orders",
+                "{{po_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CANCELLED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete purchase order",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/v1/purchase-orders/{{po_id}}/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchase-orders",
+                "{{po_id}}"
+              ]
+            },
+            "description": "409 if invoices reference the PO."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Invoices (Django)",
+      "item": [
+        {
+          "name": "Create invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{django_url}}/api/v1/invoices/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "Created as PENDING. total_amount is optional (amount + tax). Run '4. Reconciliation > Run reconciliation' to classify it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_number\": \"INV-P-001\",\n  \"vendor\": \"{{vendor_id}}\",\n  \"purchase_order\": \"{{po_id}}\",\n  \"invoice_date\": \"2026-02-01\",\n  \"due_date\": \"2026-03-03\",\n  \"amount\": \"2000.00\",\n  \"tax_amount\": \"360.00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.id) { pm.collectionVariables.set('invoice_id', body.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create invoice - duplicate number (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{django_url}}/api/v1/invoices/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_number\": \"inv-p-001\",\n  \"vendor\": \"{{vendor_id}}\",\n  \"purchase_order\": \"{{po_id}}\",\n  \"invoice_date\": \"2026-02-01\",\n  \"due_date\": \"2026-03-03\",\n  \"amount\": \"2000.00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List invoices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/v1/invoices/?page=1&page_size=20",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "reconciliation_status",
+                  "value": "MISMATCHED",
+                  "disabled": true
+                },
+                {
+                  "key": "source",
+                  "value": "BULK_UPLOAD",
+                  "disabled": true
+                },
+                {
+                  "key": "vendor_code",
+                  "value": "V001",
+                  "disabled": true
+                },
+                {
+                  "key": "po_number",
+                  "value": "PO-1001",
+                  "disabled": true
+                },
+                {
+                  "key": "invoice_date_from",
+                  "value": "2026-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "invoice_date_to",
+                  "value": "2026-12-31",
+                  "disabled": true
+                },
+                {
+                  "key": "due_date_to",
+                  "value": "2026-12-31",
+                  "disabled": true
+                },
+                {
+                  "key": "min_total",
+                  "value": "1000",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "INV-10",
+                  "disabled": true
+                },
+                {
+                  "key": "ordering",
+                  "value": "-total_amount",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Get invoice",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/v1/invoices/{{invoice_id}}/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Update invoice",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{django_url}}/api/v1/invoices/{{invoice_id}}/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}"
+              ]
+            },
+            "description": "Changing a financial field resets the invoice to PENDING and, if it was MATCHED, returns its total to the PO balance.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"2500.00\",\n  \"tax_amount\": \"450.00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete invoice",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/v1/invoices/{{invoice_id}}/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoice_id}}"
+              ]
+            },
+            "description": "A MATCHED invoice returns its total to the PO balance."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Bulk upload (FastAPI)",
+      "item": [
+        {
+          "name": "Upload sample CSV",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/uploads/invoices",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads",
+                "invoices"
+              ]
+            },
+            "description": "Choose samples/sample_invoices.csv. With the demo seed data the summary is 14 records: 6 success (4 matched + 2 mismatched), 7 failed, 1 duplicate. Sending the same file again returns HTTP 200 with idempotent_replay=true.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample_invoices.csv",
+                  "description": "Select samples/sample_invoices.csv"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.summary) { pm.collectionVariables.set('batch_id', body.summary.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload sample XLSX",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/uploads/invoices",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads",
+                "invoices"
+              ]
+            },
+            "description": "Same rows as the CSV. After the CSV was imported, the valid rows are reported as duplicates.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample_invoices.xlsx",
+                  "description": "Select samples/sample_invoices.xlsx"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.summary) { pm.collectionVariables.set('batch_id', body.summary.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload with Idempotency-Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "upload-2026-11-21-001"
+              }
+            ],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/uploads/invoices",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads",
+                "invoices"
+              ]
+            },
+            "description": "Re-sending the same key + file replays the stored result. The same key with a different file is rejected with 409.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample_invoices.csv",
+                  "description": "Select samples/sample_invoices.csv"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.summary) { pm.collectionVariables.set('batch_id', body.summary.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload again with force=true",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/uploads/invoices?force=true",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads",
+                "invoices"
+              ],
+              "query": [
+                {
+                  "key": "force",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Processes identical content again (e.g. after fixing master data). Rows already imported come back as DUPLICATE.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample_invoices.csv",
+                  "description": "Select samples/sample_invoices.csv"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.summary) { pm.collectionVariables.set('batch_id', body.summary.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/uploads?page=1&page_size=20",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "COMPLETED",
+                  "disabled": true
+                },
+                {
+                  "key": "file_name",
+                  "value": "sample",
+                  "disabled": true
+                },
+                {
+                  "key": "created_from",
+                  "value": "2026-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "created_to",
+                  "value": "2026-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Upload summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/uploads/{{batch_id}}",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads",
+                "{{batch_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Upload records",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/uploads/{{batch_id}}/records?page=1&page_size=50",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads",
+                "{{batch_id}}",
+                "records"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "50"
+                },
+                {
+                  "key": "classification",
+                  "value": "FAILED",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "classification: MATCHED | MISMATCHED | DUPLICATE | FAILED"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Reconciliation (FastAPI)",
+      "item": [
+        {
+          "name": "Run reconciliation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/reconciliation/run",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reconciliation",
+                "run"
+              ]
+            },
+            "description": "Classifies all PENDING and MISMATCHED invoices.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Run reconciliation (filtered)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/reconciliation/run",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reconciliation",
+                "run"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vendor_code\": \"V001\",\n  \"po_number\": \"PO-1001\",\n  \"include_failed\": true,\n  \"limit\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reconcile one invoice",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/reconciliation/invoices/{{invoice_id}}",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reconciliation",
+                "invoices",
+                "{{invoice_id}}"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Reports (FastAPI)",
+      "item": [
+        {
+          "name": "Vendor-wise invoice summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/reports/vendor-summary?page=1&page_size=20",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "vendor-summary"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "vendor_code",
+                  "value": "V001",
+                  "disabled": true
+                },
+                {
+                  "key": "vendor_status",
+                  "value": "ACTIVE",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "acme",
+                  "disabled": true
+                },
+                {
+                  "key": "invoice_date_from",
+                  "value": "2026-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "invoice_date_to",
+                  "value": "2026-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "PO-wise remaining balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/reports/po-balance?page=1&page_size=20",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "po-balance"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                },
+                {
+                  "key": "vendor_code",
+                  "value": "V001",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "OPEN",
+                  "disabled": true
+                },
+                {
+                  "key": "has_balance",
+                  "value": "true",
+                  "disabled": true
+                },
+                {
+                  "key": "po_number",
+                  "value": "PO-1001",
+                  "disabled": true
+                },
+                {
+                  "key": "order_date_from",
+                  "value": "2026-01-01",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Processing statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/api/v1/reports/processing-stats",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "processing-stats"
+              ],
+              "query": [
+                {
+                  "key": "date_from",
+                  "value": "2026-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Health & docs",
+      "item": [
+        {
+          "name": "Django health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/health/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "FastAPI health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/health",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Django OpenAPI schema",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{django_url}}/api/schema/",
+              "host": [
+                "{{django_url}}"
+              ],
+              "path": [
+                "api",
+                "schema"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "FastAPI OpenAPI schema",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{fastapi_url}}/openapi.json",
+              "host": [
+                "{{fastapi_url}}"
+              ],
+              "path": [
+                "openapi.json"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    }
+  ]
+}
